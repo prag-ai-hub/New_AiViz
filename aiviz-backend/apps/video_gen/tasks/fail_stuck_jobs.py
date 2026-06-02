@@ -23,17 +23,37 @@ logger = logging.getLogger(__name__)
 def fail_stuck_jobs() -> int:
     cfg = getattr(settings, "VIDEO_GEN", {})
     stuck_after = int(cfg.get("STUCK_AFTER_MINUTES", 10))
-    cutoff = timezone.now() - timedelta(minutes=stuck_after)
+    now = timezone.now()
+    running_cutoff = now - timedelta(minutes=stuck_after)
+    pending_cutoff = now - timedelta(minutes=5)
 
-    qs = VideoJob.objects.filter(
+    running_qs = VideoJob.objects.filter(
         status=VideoJobStatus.RUNNING,
-        started_at__lt=cutoff,
+        started_at__lt=running_cutoff,
     )
-    updated = qs.update(
+    running_updated = running_qs.update(
         status=VideoJobStatus.FAILED,
         error=f"provider timeout (>{stuck_after} min)",
-        completed_at=timezone.now(),
+        completed_at=now,
     )
-    if updated:
-        logger.warning("fail_stuck_jobs flipped %s stuck job(s) to FAILED", updated)
-    return updated
+
+    # Also clean up jobs that never made it out of pending — usually means the
+    # Celery broker was unreachable when the request was served.
+    pending_qs = VideoJob.objects.filter(
+        status=VideoJobStatus.PENDING,
+        created_at__lt=pending_cutoff,
+    )
+    pending_updated = pending_qs.update(
+        status=VideoJobStatus.FAILED,
+        error="never picked up by worker (broker unreachable?)",
+        completed_at=now,
+    )
+
+    total = running_updated + pending_updated
+    if total:
+        logger.warning(
+            "fail_stuck_jobs flipped %s running + %s pending job(s) to FAILED",
+            running_updated,
+            pending_updated,
+        )
+    return total

@@ -83,6 +83,35 @@ def test_generate_happy_path_returns_202_and_dispatches(api_client, monkeypatch,
     assert calls == [job.pk]
 
 
+def test_generate_409_when_user_has_active_job(api_client, monkeypatch, settings):
+    """One video at a time — second concurrent submit returns 409."""
+    _wire_video_settings(settings)
+    calls = _swallow_task(monkeypatch)
+
+    user = UserFactory()
+    _auth(api_client, user)
+
+    # First job goes through.
+    r1 = api_client.post(
+        "/api/v1/video/generate",
+        {"prompt": "first prompt"},
+        format="json",
+    )
+    assert r1.status_code == 202
+
+    # Second submit while first is still pending is rejected.
+    r2 = api_client.post(
+        "/api/v1/video/generate",
+        {"prompt": "second prompt"},
+        format="json",
+    )
+    assert r2.status_code == 409
+    assert "in progress" in r2.data["detail"].lower()
+    assert r2.data["active_job_id"] == r1.data["id"]
+    assert VideoJob.objects.filter(user=user).count() == 1
+    assert calls == [r1.data["id"]]  # only one task dispatched
+
+
 def test_generate_anon_is_401(api_client):
     response = api_client.post(
         "/api/v1/video/generate", {"prompt": "x"}, format="json"

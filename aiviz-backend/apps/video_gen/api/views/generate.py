@@ -38,6 +38,19 @@ class GenerateView(APIView):
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
 
+        active = VideoJob.objects.filter(
+            user=request.user,
+            status__in=[VideoJobStatus.PENDING, VideoJobStatus.RUNNING],
+        ).first()
+        if active is not None:
+            return Response(
+                {
+                    "detail": "You already have a video in progress. Wait for it to finish before starting another.",
+                    "active_job_id": active.pk,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
         check_quota(request.user, TOOL_KEY, 1)
 
         job = VideoJob.objects.create(

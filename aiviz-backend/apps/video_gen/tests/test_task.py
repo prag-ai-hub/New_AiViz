@@ -134,6 +134,28 @@ def test_start_generation_skips_canceled_jobs(monkeypatch, settings):
     assert not UsageQuota.objects.filter(user=user, tool_key="video_gen").exists()
 
 
+def test_fail_stuck_jobs_clears_old_pending(settings):
+    """Pending jobs >5min old (broker was unreachable) get flipped to failed."""
+    _wire_settings(settings)
+    user = UserFactory()
+    stale = VideoJobFactory(user=user, status=VideoJobStatus.PENDING)
+    VideoJob.objects.filter(pk=stale.pk).update(
+        created_at=timezone.now() - timedelta(minutes=6)
+    )
+
+    fresh = VideoJobFactory(user=user, status=VideoJobStatus.PENDING)
+    # fresh.created_at is "now"; should not be touched.
+
+    count = fail_stuck_jobs()
+    assert count == 1
+
+    stale.refresh_from_db()
+    fresh.refresh_from_db()
+    assert stale.status == VideoJobStatus.FAILED
+    assert "broker" in stale.error
+    assert fresh.status == VideoJobStatus.PENDING
+
+
 def test_fail_stuck_jobs_marks_long_running_failed(settings):
     _wire_settings(settings)
     user = UserFactory()

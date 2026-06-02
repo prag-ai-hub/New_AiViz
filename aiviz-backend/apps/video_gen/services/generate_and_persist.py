@@ -126,6 +126,7 @@ def generate_and_persist(*, job: VideoJob) -> VideoJob:
             fal_generate_video(
                 image_url=seed_url_for_video,
                 model=video_model,
+                prompt=refined,
                 duration_seconds=duration,
             )
         )

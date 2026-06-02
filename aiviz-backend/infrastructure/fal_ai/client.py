@@ -44,6 +44,7 @@ def generate_video_from_image(
     *,
     image_url: str,
     model: str,
+    prompt: str,
     duration_seconds: int = 5,
     aspect_ratio: str = "16:9",
 ) -> tuple[bytes, str, str, str]:
@@ -52,6 +53,9 @@ def generate_video_from_image(
     Returns `(video_bytes, mime_type, request_id, source_url)`. Raises
     `FalNotConfigured` when the key is missing, `FalError` for any SDK / HTTP
     failure. Blocking call — invoke from a Celery task, never from a request thread.
+
+    `prompt` is required by Kling / most fal image-to-video models — it guides
+    the animation (camera motion, subject behavior, etc.).
     """
     key = _api_key()
     os.environ["FAL_KEY"] = key
@@ -63,6 +67,7 @@ def generate_video_from_image(
         result = fal_client.subscribe(
             model,
             arguments={
+                "prompt": prompt,
                 "image_url": image_url,
                 "duration": str(duration_seconds),
                 "aspect_ratio": aspect_ratio,

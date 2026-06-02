@@ -61,7 +61,8 @@ export function VideoGenScreen() {
     generate.mutate({ prompt: trimmed });
   };
 
-  const ctaDisabled = !prompt.trim() || generate.isPending;
+  const hasActive = active.length > 0;
+  const ctaDisabled = !prompt.trim() || generate.isPending || hasActive;
 
   return (
     <Screen>
@@ -114,9 +115,21 @@ export function VideoGenScreen() {
               <Text style={{ fontSize: 16 }}>🎬</Text>
             )}
             <Text style={{ color: colors.primaryFg, fontWeight: "700" }}>
-              {generate.isPending ? "Queuing…" : "Generate Video"}
+              {generate.isPending
+                ? "Queuing…"
+                : hasActive
+                  ? "Already generating"
+                  : "Generate Video"}
             </Text>
           </Pressable>
+          {hasActive ? (
+            <Text
+              variant="caption"
+              style={{ color: colors.muted, marginTop: tokens.spacing.xs }}
+            >
+              One video at a time — wait for the current one to finish.
+            </Text>
+          ) : null}
         </AssistantCard>
 
         {active.length > 0 ? (

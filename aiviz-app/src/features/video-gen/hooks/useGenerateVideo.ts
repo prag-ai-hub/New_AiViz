@@ -25,7 +25,12 @@ export function useGenerateVideo(opts?: {
     },
     onError: (err) => {
       const status = err instanceof ApiError ? err.status : undefined;
-      if (status === 402) {
+      if (status === 409) {
+        showToast.info({
+          title: "Already generating",
+          message: "Wait for your current video to finish before starting another.",
+        });
+      } else if (status === 402) {
         showToast.error({
           title: "Daily limit reached",
           message: "Tap to upgrade for more video generations.",
